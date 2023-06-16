@@ -1,1 +1,10 @@
-# sdcore-amf-rock
+# SD-Core AMF ROCK
+
+Container image for SD-Core AMF.
+
+## Usage
+
+```console
+docker pull ghcr.io/canonical/sdcore-amf:1.3
+docker run -it ghcr.io/canonical/sdcore-amf:1.3
+```
