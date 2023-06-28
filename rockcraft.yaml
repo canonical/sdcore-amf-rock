@@ -1,5 +1,6 @@
 name: sdcore-amf
-base: ubuntu:22.04
+base: bare
+build-base: ubuntu:22.04
 version: '1.3'
 summary: SD-Core AMF
 description: SD-Core AMF
@@ -15,5 +16,7 @@ parts:
     source-commit: a4759dbc2da986bbcec0b8edbd9ddbea27a1944d
     build-snaps:
       - go/1.18/stable
+    stage-packages:
+      - libc6_libs
     organize:
       bin/cmd: bin/amf
