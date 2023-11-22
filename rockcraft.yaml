@@ -1,6 +1,6 @@
 name: sdcore-amf
 base: bare
-build-base: ubuntu:22.04
+build-base: ubuntu@22.04
 version: '1.3'
 summary: SD-Core AMF
 description: SD-Core AMF
@@ -14,9 +14,9 @@ parts:
     plugin: go
     source: https://github.com/omec-project/amf.git
     source-type: git
-    source-commit: a4759dbc2da986bbcec0b8edbd9ddbea27a1944d
+    source-commit: 9cd04c496b032db2861b86f8a95f413cb7e0baf7
     build-snaps:
-      - go/1.18/stable
+      - go/1.21/stable
     stage-packages:
       - libc6_libs
     organize:
