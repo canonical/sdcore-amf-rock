@@ -14,7 +14,7 @@ parts:
     plugin: go
     source: https://github.com/omec-project/amf.git
     source-type: git
-    source-commit: 9cd04c496b032db2861b86f8a95f413cb7e0baf7
+    source-commit: ec4f8870d3c8a2d802715c98d95364b787e04958
     build-snaps:
       - go/1.21/stable
     stage-packages:
