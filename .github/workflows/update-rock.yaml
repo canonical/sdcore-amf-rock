@@ -1,0 +1,59 @@
+name: Auto-update Rock Image
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0,12 * * *"
+
+
+env:
+  OWNER: omec-project
+  REPO: amf
+  BRANCH: master
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-rock:
+    name: Get Upstream Updates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up SSH Key for Signing Commits
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.BOT_PRIVATE_SIGNING_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          echo "${{ secrets.BOT_PUBLIC_SIGNING_KEY }}" > ~/.ssh/id_rsa.pub
+          chmod 644 ~/.ssh/id_rsa.pub
+          git config --global user.email "telco-engineers@lists.canonical.com"
+          git config --global user.name "telcobot"
+          git config --global user.signingkey ~/.ssh/id_rsa.pub
+          git config --global commit.gpgsign true
+          git config --global gpg.format ssh
+
+      - name: Update Upstream commit ID
+        run: |
+          sudo snap install jq && sudo snap install yq
+          latest_commit_id=`curl -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/$OWNER/$REPO/commits/$BRANCH?per_page=1 | jq '.sha'`
+          yq -i  ".parts.amf.source-commit = $latest_commit_id" rockcraft.yaml
+
+      - name: Create a PR for local changes
+        uses: peter-evans/create-pull-request@v4.2.4
+        with:
+          token: ${{ secrets.TELCO_GITHUB_BOT_TOKEN }}
+          commit-message: "chore: update rock image"
+          committer: "Telcobot <telco-engineers@lists.canonical.com>"
+          author: "Telcobot <telco-engineers@lists.canonical.com>"
+          title: "Update rock image"
+          body: |
+            Automated action to update rock image if upstream is updated.
+            This PR gets the latest merged commit id from specified upstream master and updates rockcraft.yaml.
+            The branch of this PR will be wiped during the next check.
+          branch: "chore/auto-update-rock"
+          delete-branch: true
