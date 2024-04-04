@@ -1,7 +1,7 @@
 name: sdcore-amf
 base: bare
 build-base: ubuntu@22.04
-version: '1.3'
+version: '1.4.0'
 summary: SD-Core AMF
 description: SD-Core AMF
 license: Apache-2.0
@@ -14,7 +14,7 @@ parts:
     plugin: go
     source: https://github.com/omec-project/amf.git
     source-type: git
-    source-commit: f29f3eccfb00cff0bea589a4c8202e605a2f2f5b
+    source-tag: v1.4.0
     build-snaps:
       - go/1.21/stable
     stage-packages:
