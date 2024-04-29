@@ -1,6 +1,6 @@
 name: sdcore-amf
 base: bare
-build-base: ubuntu@22.04
+build-base: ubuntu@24.04
 version: '1.4.1'
 summary: SD-Core AMF
 description: SD-Core AMF
