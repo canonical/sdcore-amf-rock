@@ -1,4 +1,4 @@
-# SD-Core AMF ROCK
+# SD-Core AMF rock
 
 Container image for SD-Core AMF.
 
