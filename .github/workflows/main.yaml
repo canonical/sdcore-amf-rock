@@ -17,7 +17,7 @@ jobs:
 
   scan-rock:
     needs: build-rock
-    uses: canonical/sdcore-github-workflows/.github/workflows/scan-rock.yaml@855bf9c
+    uses: canonical/sdcore-github-workflows/.github/workflows/scan-rock.yaml@main
 
   publish-rock:
     if: github.ref_name == 'main'
