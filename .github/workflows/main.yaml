@@ -5,6 +5,11 @@ on:
     types: [edited, opened, reopened, synchronize]
     branches:
       - main
+      - v**
+  push:
+    branches:
+      - main
+      - v**
   schedule:
     - cron: '0 0 * * 0'
 
