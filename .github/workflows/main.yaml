@@ -19,6 +19,7 @@ jobs:
     uses: canonical/sdcore-github-workflows/.github/workflows/build-rock.yaml@v2.3.2
 
   scan-rock:
+    needs: build-rock
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
