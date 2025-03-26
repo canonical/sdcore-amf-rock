@@ -65,25 +65,25 @@ jobs:
       - name: Compare found CVEs with KEVs
         run: |
           set -euo pipefail
-
+          
           # Define the error_exit function
           error_exit() {
             echo "::error file=${BASH_SOURCE[1]},line=$1::Error: $2"
             exit 1
           }
-
+          
           # Trap errors and call error_exit on termination
           trap 'error_exit ${LINENO} "An error occurred while comparing CVEs with KEVs."' ERR
-
+          
           # Get the CVEs from Trivy results
           current_cves=$(jq -r '.. | .results? | arrays | .[].ruleId' trivy-results.sarif)
-
+          
           # Get the list of KEV CVEs from the KEV catalog
           kevs=$(jq -r '.vulnerabilities[] | .cveID' known_exploited_vulnerabilities.json)
-
+          
           # Compare the lists of CVEs and output any common CVEs
           comm -12 <(sort <<< "$current_cves") <(sort <<< "$kevs") > matched_cvs.txt
-
+          
           # Create a SARIF template for the KEV matches
           matched_sarif=$(cat <<EOF
           {
@@ -111,7 +111,7 @@ jobs:
            .runs[0].results += [{"ruleId": $cve, "message": {"text": "This CVE matches the CISA KEV catalog.", "tags": ["KEV"]}}]' \
           <<< "$matched_sarif")
           done < matched_cvs.txt
-
+          
           # Save final SARIF file
           echo "$matched_sarif" > kev_matches.sarif    
 
