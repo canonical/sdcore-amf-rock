@@ -19,8 +19,110 @@ jobs:
     uses: canonical/sdcore-github-workflows/.github/workflows/build-rock.yaml@v2.3.2
 
   scan-rock:
-    needs: build-rock
-    uses: canonical/sdcore-github-workflows/.github/workflows/scan-rock.yaml@v2.3.2
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install skopeo from rockcraft
+        run: |
+          sudo snap install --edge --classic rockcraft
+
+      - name: Install yq
+        run: |
+          sudo snap install yq
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: rock
+
+      - name: Import
+        run: |
+          image_name="$(yq '.name' rockcraft.yaml)"
+          echo "image_name=${image_name}" >> $GITHUB_ENV
+          version="$(yq '.version' rockcraft.yaml)"
+          echo "version=${version}" >> $GITHUB_ENV
+          rock_file=$(ls *.rock | tail -n 1)
+          sudo rockcraft.skopeo \
+            --insecure-policy \
+            copy \
+            oci-archive:"${rock_file}" \
+            docker-daemon:"ghcr.io/canonical/${image_name}:${version}"
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "ghcr.io/canonical/${{env.image_name}}:${{env.version}}"
+          format: 'json'
+          output: 'trivy-results.json'
+          arguments: '--ignore-unfixed=false'
+
+      - name: Download CISA KEV Catalog
+        run: |
+          wget https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json -O known_exploited_vulnerabilities.json
+
+      - name: Compare found CVEs with KEVs
+        run: |
+          set -euo pipefail
+
+          # Define the error_exit function
+          error_exit() {
+            echo "::error file=${BASH_SOURCE[1]},line=$1::Error: $2"
+            exit 1
+          }
+
+          # Trap errors and call error_exit on termination
+          trap 'error_exit ${LINENO} "An error occurred while comparing CVEs with KEVs."' ERR
+
+          # Get the CVEs from Trivy results
+          current_cves=$(jq -r '.. | .results? | arrays | .[].ruleId' trivy-results.sarif)
+
+          # Get the list of KEV CVEs from the KEV catalog
+          kevs=$(jq -r '.vulnerabilities[] | .cveID' known_exploited_vulnerabilities.json)
+
+          # Compare the lists of CVEs and output any common CVEs
+          comm -12 <(sort <<< "$current_cves") <(sort <<< "$kevs") > matched_cvs.txt
+
+          # Create a SARIF template for the KEV matches
+          matched_sarif=$(cat <<EOF
+          {
+            "version": "2.1.0",
+            "runs": [
+              {
+                "tool": {
+                  "driver": {
+                    "name": "KEV Matcher",
+                    "informationUri": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
+                    "rules": []
+                  }
+                },
+                "results": []
+              }
+            ]
+          }
+          EOF
+          )
+          # Add matched KEVs to the SARIF file
+          while read -r cve; do
+          matched_sarif=$(jq \
+          --arg cve "$cve" \
+          '.runs[0].tool.driver.rules += [{"id": $cve, "name": $cve, "shortDescription": {"text": "CVE matched with KEV"}, "tags": ["KEV"]}] |
+           .runs[0].results += [{"ruleId": $cve, "message": {"text": "This CVE matches the CISA KEV catalog.", "tags": ["KEV"]}}]' \
+          <<< "$matched_sarif")
+          done < matched_cvs.txt
+
+          # Save final SARIF file
+          echo "$matched_sarif" > kev_matches.sarif    
+
+      - name: Upload CVE results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Upload KEV results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'kev_matches.sarif'
 
   publish-rock:
     if: github.ref_name == 'main'
