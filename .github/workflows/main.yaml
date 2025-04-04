@@ -75,6 +75,16 @@ jobs:
           # Trap errors and call error_exit on termination
           trap 'error_exit ${LINENO} "An error occurred while comparing CVEs with KEVs."' ERR
           
+          if [[ ! -s trivy-results.sarif ]]; then
+            echo "Error: trivy-results.sarif file is missing or empty."
+            exit 1
+          fi
+          
+          if ! jq empty known_exploited_vulnerabilities.json >/dev/null 2>&1; then
+            echo "Error: known_exploited_vulnerabilities.json is not valid JSON."
+            exit 1
+          fi
+          
           # Get the CVEs from Trivy results
           current_cves=$(jq -r '.. | .results? | arrays | .[].ruleId' trivy-results.sarif)
           
@@ -85,9 +95,6 @@ jobs:
           if [[ -z "$kevs" ]]; then
             echo "No KEV CVEs found in the known_exploited_vulnerabilities.json catalog."
           fi
-          
-          # Ensure current_cves is defined, even if empty
-          current_cves=${current_cves:-""}
           
           # If both current_cves and kevs are empty, skip processing
           if [[ -z "$current_cves" && -z "$kevs" ]]; then
