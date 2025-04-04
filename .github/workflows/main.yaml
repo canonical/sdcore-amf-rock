@@ -78,11 +78,34 @@ jobs:
           # Get the CVEs from Trivy results
           current_cves=$(jq -r '.. | .results? | arrays | .[].ruleId' trivy-results.sarif)
           
-          # Get the list of KEV CVEs from the KEV catalog
-          kevs=$(jq -r '.vulnerabilities[] | .cveID' known_exploited_vulnerabilities.json)
+          # Extract the list of KEV CVEs from the catalog
+          kevs=$(jq -r '.vulnerabilities[] | .cveID' known_exploited_vulnerabilities.json 2>/dev/null || echo "")
           
-          # Compare the lists of CVEs and output any common CVEs
-          comm -12 <(sort <<< "$current_cves") <(sort <<< "$kevs") > matched_cvs.txt
+          # If no KEV CVEs are found, log a message and continue gracefully
+          if [[ -z "$kevs" ]]; then
+            echo "No KEV CVEs found in the known_exploited_vulnerabilities.json catalog."
+          fi
+          
+          # Ensure current_cves is defined, even if empty
+          current_cves=${current_cves:-""}
+          
+          # If both current_cves and kevs are empty, skip processing
+          if [[ -z "$current_cves" && -z "$kevs" ]]; then
+            echo "No CVEs or KEV CVEs to process. Exiting."
+            exit 0
+          fi
+          
+          # Compare CVEs and save the matched results
+          comm -12 <(sort <<< "$current_cves") <(sort <<< "$kevs") > matched_cvs.txt || {
+            echo "Error: Failed to compare CVEs."
+            exit 1
+          }
+          
+          # If matched_cvs.txt is empty, log a message and exit successfully
+          if [[ ! -s matched_cvs.txt ]]; then
+            echo "No matches found between current CVEs and the KEV catalog."
+            exit 0
+          fi
           
           # Create a SARIF template for the KEV matches
           matched_sarif=$(cat <<EOF
@@ -103,24 +126,43 @@ jobs:
           }
           EOF
           )
+          
           # Add matched KEVs to the SARIF file
           while read -r cve; do
-          matched_sarif=$(jq \
-          --arg cve "$cve" \
-          '.runs[0].tool.driver.rules += [{"id": $cve, "name": $cve, "shortDescription": {"text": "CVE matched with KEV"}, "tags": ["KEV"]}] |
-           .runs[0].results += [{"ruleId": $cve, "message": {"text": "This CVE matches the CISA KEV catalog.", "tags": ["KEV"]}}]' \
-          <<< "$matched_sarif")
+            matched_sarif=$(jq \
+              --arg cve "$cve" \
+              '.runs[0].tool.driver.rules += [{"id": $cve, "name": $cve, "shortDescription": {"text": "CVE matched with KEV"}, "tags": ["KEV"]}] |
+              .runs[0].results += [{"ruleId": $cve, "message": {"text": "This CVE matches the CISA KEV catalog.", "tags": ["KEV"]}}]' \
+              <<< "$matched_sarif") || {
+              echo "Error: jq failed while processing CVE $cve."
+              exit 1
+            }
           done < matched_cvs.txt
           
           # Save final SARIF file
-          echo "$matched_sarif" > kev_matches.sarif    
+          echo "$matched_sarif" > kev_matches.sarif || {
+            echo "Error: Failed to save SARIF file."
+            exit 1
+          }  
 
       - name: Upload CVE results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-results.sarif'
 
+      - name: Check if kev_matches.sarif file exists
+        id: check_kev_sarif_file
+        run: |
+          if [ -e kev_matches.sarif ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+        outputs:
+          exists: ${{ steps.check_kev_sarif_file.outputs.exists }}
+
       - name: Upload KEV results to GitHub Security tab
+        if: ${{ steps.check_kev_sarif_file.outputs.exists == 'true' }}
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'kev_matches.sarif'
