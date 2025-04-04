@@ -158,8 +158,6 @@ jobs:
           else
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
-        outputs:
-          exists: ${{ steps.check_kev_sarif_file.outputs.exists }}
 
       - name: Upload KEV results to GitHub Security tab
         if: ${{ steps.check_kev_sarif_file.outputs.exists == 'true' }}
